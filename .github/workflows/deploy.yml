@@ -62,19 +62,51 @@ jobs:
 
           echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
 
-      - name: Ensure namespace and Docker Hub pull secret (using oc)
+      - name: Ensure namespace and Docker Hub pull secret (try create, fail with helpful message)
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           NAMESPACE="${{ steps.read_ns.outputs.namespace }}"
           echo "Using namespace: ${NAMESPACE}"
-          oc create namespace "${NAMESPACE}" --dry-run=client -o yaml | oc apply -f -
+
+          # If namespace exists, continue
+          if oc get namespace "${NAMESPACE}" >/dev/null 2>&1; then
+            echo "Namespace ${NAMESPACE} already exists."
+          else
+            echo "Namespace ${NAMESPACE} does not exist. Attempting to create..."
+            # Try to create the namespace idempotently
+            if oc create namespace "${NAMESPACE}" --dry-run=client -o yaml | oc apply -f -; then
+              echo "Namespace ${NAMESPACE} created or applied successfully."
+            else
+              echo ""
+              echo "ERROR: Could not create or apply namespace ${NAMESPACE}."
+              echo "This typically means the ServiceAccount used by the CI does not have permission to create namespaces (namespaces are cluster-scoped)."
+              echo ""
+              echo "Options to resolve:"
+              echo "1) Ask a cluster administrator to create the namespace and grant the CI ServiceAccount 'edit' in that namespace:"
+              echo ""
+              echo "   # As cluster-admin (replace NAMESPACE and <SA_NAME>):"
+              echo "   oc create namespace ${NAMESPACE}"
+              echo "   oc create serviceaccount <SA_NAME> -n ${NAMESPACE}     # if SA not already created"
+              echo "   oc adm policy add-role-to-user edit system:serviceaccount:${NAMESPACE}:<SA_NAME> -n ${NAMESPACE}"
+              echo ""
+              echo "2) If you want the CI to be able to create namespaces (less recommended), ask an admin to grant a ClusterRole/ClusterRoleBinding allowing namespace creation."
+              echo ""
+              echo "After the namespace exists and the ServiceAccount has 'edit' in that namespace, re-run this workflow."
+              echo ""
+              exit 1
+            fi
+          fi
+
+          # Create/ensure docker-registry secret in the namespace (idempotent)
           oc create secret docker-registry regcred \
             --docker-server=https://index.docker.io/v1/ \
             --docker-username="${DOCKERHUB_USERNAME}" \
             --docker-password="${DOCKERHUB_TOKEN}" \
             --dry-run=client -o yaml | oc -n "${NAMESPACE}" apply -f -
+
+          # Link secret to default serviceaccount for image pulls (optional; ignore error)
           oc -n "${NAMESPACE}" secrets link default regcred --for=pull || true
 
       - name: Set up Helm

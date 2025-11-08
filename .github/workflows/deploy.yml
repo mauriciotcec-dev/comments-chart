@@ -1,21 +1,12 @@
-name: CI - Deploy chart to OpenShift (uses oc + inputs)
+name: CI - Deploy chart to OpenShift (uses oc + namespace from values.yaml)
 
 on:
   workflow_dispatch:
-    inputs:
-      namespace:
-        description: 'Namespace to deploy'
-        required: false
-        default: ''
-      frontend_tag:
-        required: false
-        default: ''
-      backendapi_tag:
-        required: false
-        default: ''
-      backenddata_tag:
-        required: false
-        default: ''
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -23,11 +14,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install oc (pinned)
+      - name: Install oc (OpenShift client)
         run: |
-          OC_VERSION="4.14.0"
-          curl -LO https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${OC_VERSION}/openshift-client-linux-${OC_VERSION}.tar.gz
-          tar -xzf openshift-client-linux-${OC_VERSION}.tar.gz -C /tmp
+          curl -LO https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
+          tar -xzf openshift-client-linux.tar.gz -C /tmp
           sudo mv /tmp/oc /usr/local/bin/oc
           sudo mv /tmp/kubectl /usr/local/bin/kubectl || true
           oc version
@@ -42,25 +32,51 @@ jobs:
             echo "ERROR: OPENSHIFT_SERVER and OPENSHIFT_TOKEN secrets must be set"
             exit 1
           fi
+
           if [ "${OPENSHIFT_INSECURE:-false}" = "true" ]; then
             oc login "${OPENSHIFT_SERVER}" --token="${OPENSHIFT_TOKEN}" --insecure-skip-tls-verify=true
           else
             oc login "${OPENSHIFT_SERVER}" --token="${OPENSHIFT_TOKEN}"
           fi
 
-      - name: Read namespace from chart values.yaml or use input
+      - name: Read namespace from chart values.yaml
         id: read_ns
         run: |
-          VALUES_FILE="values.yaml"
-          DEFAULT_NS="comments-namespace"
-          if [ -n "${{ github.event.inputs.namespace }}" ]; then
-            NAMESPACE="${{ github.event.inputs.namespace }}"
-          elif [ -f "$VALUES_FILE" ]; then
-            NAMESPACE=$(grep -E '^[[:space:]]*namespace[[:space:]]*:' "$VALUES_FILE" | head -n1 | awk -F':' '{gsub(/^[ \t]+|[ \t]+$/,"",$2); print $2}')
-            [ -z "$NAMESPACE" ] && NAMESPACE="$DEFAULT_NS"
+          # Busca el primer values.yaml en el repo (profundidad 3 suficiente para la mayoría de layouts)
+          VALUES_FILE=$(find . -maxdepth 3 -type f -name values.yaml | head -n1 || true)
+
+          if [ -z "$VALUES_FILE" ]; then
+            echo "WARNING: values.yaml not found in repo root or charts/; using default namespace"
+            NAMESPACE="comments-namespace"
           else
-            NAMESPACE="$DEFAULT_NS"
+            echo "Found values file: $VALUES_FILE"
+            # Usamos Python (sin dependencias externas) para extraer el valor de `namespace:`
+            NAMESPACE=$(python3 - "$VALUES_FILE" <<'PY'
+import sys, re
+f = sys.argv[1]
+try:
+    with open(f) as fh:
+        for line in fh:
+            m = re.match(r'^\s*namespace\s*:\s*(.+)', line)
+            if m:
+                val = m.group(1).strip()
+                # Quita comillas simples o dobles si existen
+                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                    val = val[1:-1]
+                print(val)
+                sys.exit(0)
+except Exception:
+    pass
+# Imprime vacío si no se encontró
+print("")
+PY
+)
+            if [ -z "$NAMESPACE" ]; then
+              echo "No 'namespace:' key found in $VALUES_FILE; using default namespace"
+              NAMESPACE="comments-namespace"
+            fi
           fi
+
           echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
 
       - name: Ensure namespace and Docker Hub pull secret (using oc)
@@ -69,12 +85,16 @@ jobs:
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           NAMESPACE="${{ steps.read_ns.outputs.namespace }}"
+          echo "Using namespace: ${NAMESPACE}"
+          # crear namespace si no existe
           oc create namespace ${NAMESPACE} --dry-run=client -o yaml | oc apply -f -
+          # crear/actualizar secret docker-registry (idempotente)
           oc create secret docker-registry regcred \
             --docker-server=https://index.docker.io/v1/ \
             --docker-username="${DOCKERHUB_USERNAME}" \
             --docker-password="${DOCKERHUB_TOKEN}" \
             --dry-run=client -o yaml | oc -n ${NAMESPACE} apply -f -
+          # linkear secret al serviceaccount default para pull (opcional)
           oc -n ${NAMESPACE} secrets link default regcred --for=pull || true
 
       - name: Set up Helm
@@ -85,13 +105,9 @@ jobs:
           HELM_EXPERIMENTAL_OCI: 0
         run: |
           NAMESPACE="${{ steps.read_ns.outputs.namespace }}"
-          # Allow providing tags via workflow inputs; fallback to repo sha of this run
-          FRONT_TAG="${{ github.event.inputs.frontend_tag || github.sha }}"
-          API_TAG="${{ github.event.inputs.backendapi_tag || github.sha }}"
-          DATA_TAG="${{ github.event.inputs.backenddata_tag || github.sha }}"
           helm upgrade --install comments-release ./ -n "${NAMESPACE}" --create-namespace \
-            --set images.frontend.tag="${FRONT_TAG}" \
-            --set images.backendApi.tag="${API_TAG}" \
-            --set images.backendData.tag="${DATA_TAG}" \
-            --set-string mongodb.password="${{ secrets.MONGO_PASSWORD }}" \
-            --wait --timeout 10m --atomic
+            --set images.frontend.tag=${{ github.sha }} \
+            --set images.backendApi.tag=${{ github.sha }} \
+            --set images.backendData.tag=${{ github.sha }} \
+            --set mongodb.password="${{ secrets.MONGO_PASSWORD }}" \
+            --wait

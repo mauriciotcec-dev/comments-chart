@@ -1,0 +1,80 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "comments-system.fullname" . }}-deny-all
+  labels:
+    app: comments
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "comments-system.fullname" . }}-allow-frontend-to-backendapi
+  labels:
+    app: comments
+spec:
+  podSelector:
+    matchLabels:
+      app: comments
+      component: backend-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: comments
+              component: frontend
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.backendApi.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "comments-system.fullname" . }}-allow-backendapi-to-backenddata
+  labels:
+    app: comments
+spec:
+  podSelector:
+    matchLabels:
+      app: comments
+      component: backend-data
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: comments
+              component: backend-api
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.backendData.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "comments-system.fullname" . }}-allow-backenddata-to-mongo
+  labels:
+    app: comments
+spec:
+  podSelector:
+    matchLabels:
+      app: comments
+      component: database
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: comments
+              component: backend-data
+      ports:
+        - protocol: TCP
+          port: 27017

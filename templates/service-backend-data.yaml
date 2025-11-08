@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "comments-system.fullname" . }}-backend-data
+  labels:
+    app: comments
+    component: backend-data
+spec:
+  ports:
+    - port: {{ .Values.service.backendData.port }}
+      targetPort: {{ .Values.service.backendData.port }}
+  selector:
+    app: comments
+    component: backend-data
+  type: ClusterIP

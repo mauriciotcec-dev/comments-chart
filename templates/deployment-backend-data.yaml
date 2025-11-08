@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "comments-system.fullname" . }}-backend-data
+  labels:
+    app: comments
+    component: backend-data
+spec:
+  replicas: {{ .Values.replicaCount.backendData }}
+  selector:
+    matchLabels:
+      app: comments
+      component: backend-data
+  template:
+    metadata:
+      labels:
+        app: comments
+        component: backend-data
+    spec:
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | default "[]" | nindent 6 }}
+      containers:
+        - name: backend-data
+          image: "{{ .Values.images.backendData.repository }}:{{ .Values.images.backendData.tag }}"
+          ports:
+            - containerPort: {{ .Values.service.backendData.port }}
+          env:
+            - name: MONGO_HOST
+              value: "{{ include "comments-system.fullname" . }}-mongo"
+            - name: MONGO_PORT
+              value: "27017"
+            - name: MONGO_DB
+              value: "commentsdb"
+            - name: MONGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "comments-system.fullname" . }}-mongo-secret
+                  key: mongo-user
+            - name: MONGO_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "comments-system.fullname" . }}-mongo-secret
+                  key: mongo-pass
+          resources: {{ toYaml .Values.resources | nindent 10 }}

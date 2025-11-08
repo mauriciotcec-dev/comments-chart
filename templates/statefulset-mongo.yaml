@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "comments-system.fullname" . }}-mongo
+  labels:
+    app: comments
+    component: database
+spec:
+  serviceName: {{ include "comments-system.fullname" . }}-mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app: comments
+      component: database
+  template:
+    metadata:
+      labels:
+        app: comments
+        component: database
+    spec:
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | default "[]" | nindent 6 }}
+      containers:
+        - name: mongo
+          image: "{{ .Values.mongodb.image }}"
+          ports:
+            - containerPort: 27017
+          env:
+            - name: MONGO_INITDB_DATABASE
+              value: "commentsdb"
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "comments-system.fullname" . }}-mongo-secret
+                  key: mongo-user
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "comments-system.fullname" . }}-mongo-secret
+                  key: mongo-pass
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+        labels:
+          app: comments
+          component: database
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: {{ .Values.mongodb.storage }}

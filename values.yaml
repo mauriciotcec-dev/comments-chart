@@ -1,0 +1,46 @@
+# Reemplaza TU_DOCKERHUB_USER por tu usuario de Docker Hub o actualiza antes del deploy.
+replicaCount:
+  frontend: 2
+  backendApi: 1
+  backendData: 1
+
+# Namespace donde se desplegarán los recursos (el workflow leerá este valor)
+namespace: mauricio-tc-ec-dev
+
+images:
+  frontend:
+    repository: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/frontend
+    tag: latest
+  backendApi:
+    repository: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/backend-api
+    tag: latest
+  backendData:
+    repository: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/backend-data
+    tag: latest
+mongodb:
+  image: mongo:6.0
+  storage: 5Gi
+  user: comments_user
+  password: changeme
+service:
+  frontend:
+    port: 8080
+  backendApi:
+    port: 5000
+  backendData:
+    port: 5001
+resources: {}
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 50
+
+# Si usas imágenes privadas, el workflow de deploy crea un secret 'regcred'
+# y el chart por defecto usará ese nombre como imagePullSecrets.
+imagePullSecrets:
+  - name: regcred
+
+route:
+  enabled: true
+  host: ""

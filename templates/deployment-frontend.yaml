@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "comments-system.fullname" . }}-frontend
+  labels:
+    app: comments
+    component: frontend
+spec:
+  replicas: {{ .Values.replicaCount.frontend }}
+  selector:
+    matchLabels:
+      app: comments
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: comments
+        component: frontend
+    spec:
+      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | default "[]" | nindent 6 }}
+      containers:
+        - name: frontend
+          image: "{{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}"
+          ports:
+            - containerPort: {{ .Values.service.frontend.port }}
+          env:
+            - name: BACKEND_API_URL
+              value: "http://{{ include "comments-system.fullname" . }}-backend-api:{{ .Values.service.backendApi.port }}"
+          resources: {{ toYaml .Values.resources | nindent 10 }}

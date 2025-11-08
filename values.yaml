@@ -5,7 +5,8 @@ replicaCount:
   backendData: 1
 
 # Namespace donde se desplegarán los recursos (el workflow leerá este valor)
-namespace: comments-namespace
+namespace: mauricio-tc-ec-dev
+#comments-namespace
 #mauricio-tc-ec-dev
 
 images:

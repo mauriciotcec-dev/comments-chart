@@ -28,7 +28,7 @@ spec:
             - containerPort: {{ .Values.service.frontend.port }}
           env:
             - name: BACKEND_API_URL
-              value: "http://{{ include \"comments-system.fullname\" . }}-backend-api:{{ .Values.service.backendApi.port }}"
+              value: {{ printf "http://%s-backend-api:%d" (include "comments-system.fullname" .) .Values.service.backendApi.port | quote }}
           {{- if .Values.resources }}
           resources:
 {{ toYaml .Values.resources | nindent 12 }}

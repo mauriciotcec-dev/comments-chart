@@ -6,7 +6,7 @@ metadata:
     app: comments
     component: frontend
 spec:
-  replicas: {{ .Values.replicaCount.frontend }}
+  replicas: {{ .Values.replicaCount.frontend | default 1 }}
   selector:
     matchLabels:
       app: comments
@@ -25,10 +25,10 @@ spec:
         - name: frontend
           image: "{{ .Values.images.frontend.repository }}:{{ .Values.images.frontend.tag }}"
           ports:
-            - containerPort: {{ .Values.service.frontend.port }}
+            - containerPort: {{ .Values.service.frontend.port | default 8080 }}
           env:
             - name: BACKEND_API_URL
-              value: {{ printf "http://%s-backend-api:%d" (include "comments-system.fullname" .) .Values.service.backendApi.port | quote }}
+              value: {{ printf "http://%s-backend-api:%d" (include "comments-system.fullname" .) (int .Values.service.backendApi.port) | quote }}
           {{- if .Values.resources }}
           resources:
 {{ toYaml .Values.resources | nindent 12 }}

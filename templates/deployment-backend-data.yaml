@@ -6,7 +6,7 @@ metadata:
     app: comments
     component: backend-data
 spec:
-  replicas: {{ .Values.replicaCount.backendData }}
+  replicas: {{ .Values.replicaCount.backendData | default 1 }}
   selector:
     matchLabels:
       app: comments
@@ -25,10 +25,10 @@ spec:
         - name: backend-data
           image: "{{ .Values.images.backendData.repository }}:{{ .Values.images.backendData.tag }}"
           ports:
-            - containerPort: {{ .Values.service.backendData.port }}
+            - containerPort: {{ .Values.service.backendData.port | default 5001 }}
           env:
             - name: MONGO_URL
-              value: "mongodb://{{ .Values.mongodb.user }}:{{ .Values.mongodb.password }}@{{ include "comments-system.fullname" . }}-mongo:27017/{{ .Values.mongodb.database | default "commentsdb" }}"
+              value: {{ printf "mongodb://%s:%s@%s-mongo:27017/%s" .Values.mongodb.user .Values.mongodb.password (include "comments-system.fullname" .) (.Values.mongodb.database | default "commentsdb") | quote }}
           {{- if .Values.resources }}
           resources:
 {{ toYaml .Values.resources | nindent 12 }}

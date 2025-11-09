@@ -7,9 +7,9 @@ metadata:
     component: frontend
 spec:
   ports:
-    - port: {{ .Values.service.frontend.port }}
-      targetPort: {{ .Values.service.frontend.port }}
+    - port: {{ .Values.service.frontend.port | default 8080 }}
+      targetPort: {{ .Values.service.frontend.port | default 8080 }}
   selector:
     app: comments
     component: frontend
-  type: ClusterIP
+  type: {{ .Values.service.type | default "ClusterIP" }}

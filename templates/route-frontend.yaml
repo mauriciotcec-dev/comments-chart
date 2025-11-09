@@ -10,7 +10,11 @@ spec:
     kind: Service
     name: {{ include "comments-system.fullname" . }}-frontend
   port:
-    targetPort: {{ .Values.service.frontend.port }}
-  host: {{ .Values.route.host | default "" }}
+    targetPort: {{ .Values.service.frontend.port | default 8080 }}
+{{- if and .Values.route (gt (len (default "" .Values.route.host)) 0) }}
+  host: {{ .Values.route.host | quote }}
+{{- end }}
+{{- if .Values.route.tls.enabled }}
   tls:
-    termination: edge
+    termination: {{ .Values.route.tls.termination | default "edge" }}
+{{- end }}

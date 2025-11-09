@@ -7,7 +7,7 @@ metadata:
     component: database
 spec:
   serviceName: {{ include "comments-system.fullname" . }}-mongo
-  replicas: 1
+  replicas: {{ .Values.replicaCount.mongo | default 1 }}
   selector:
     matchLabels:
       app: comments
@@ -18,25 +18,28 @@ spec:
         app: comments
         component: database
     spec:
-      imagePullSecrets: {{ toYaml .Values.imagePullSecrets | default "[]" | nindent 6 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: mongo
-          image: "{{ .Values.mongodb.image }}"
+          image: "{{ .Values.mongodb.image | default "mongo:6.0" }}"
           ports:
             - containerPort: 27017
           env:
             - name: MONGO_INITDB_DATABASE
-              value: "commentsdb"
+              value: {{ (.Values.mongodb.database | default "commentsdb") | quote }}
             - name: MONGO_INITDB_ROOT_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "comments-system.fullname" . }}-mongo-secret
+                  name: {{ include "comments-system.fullname" . }}-mongo
                   key: mongo-user
             - name: MONGO_INITDB_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "comments-system.fullname" . }}-mongo-secret
-                  key: mongo-pass
+                  name: {{ include "comments-system.fullname" . }}-mongo
+                  key: mongo-password
           volumeMounts:
             - name: mongo-data
               mountPath: /data/db
@@ -50,4 +53,4 @@ spec:
         accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
-            storage: {{ .Values.mongodb.storage }}
+            storage: {{ .Values.mongodb.storage | default "5Gi" }}

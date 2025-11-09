@@ -7,9 +7,9 @@ metadata:
     component: backend-data
 spec:
   ports:
-    - port: {{ .Values.service.backendData.port }}
-      targetPort: {{ .Values.service.backendData.port }}
+    - port: {{ .Values.service.backendData.port | default 5001 }}
+      targetPort: {{ .Values.service.backendData.port | default 5001 }}
   selector:
     app: comments
     component: backend-data
-  type: ClusterIP
+  type: {{ .Values.service.type | default "ClusterIP" }}

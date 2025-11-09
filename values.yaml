@@ -1,4 +1,4 @@
-# Reemplaza TU_DOCKERHUB_USER por tu usuario de Docker Hub o actualiza antes del deploy.
+# Reemplaza los valores por defecto antes del deploy o pásalos desde CI con --set
 replicaCount:
   frontend: 2
   backendApi: 1
@@ -6,24 +6,27 @@ replicaCount:
 
 # Namespace donde se desplegarán los recursos (el workflow leerá este valor)
 namespace: mauricio-tc-ec-dev
-#comments-namespace
-#mauricio-tc-ec-dev
 
+# Repositorios por defecto: reemplaza REPLACE_WITH_USER o pásalo desde CI con --set.
+# NO uses expresiones de GitHub Actions (${{ secrets... }}) dentro del values.yaml.
 images:
   frontend:
-    repository: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/frontend
-    tag: latest
+    repository: "docker.io/REPLACE_WITH_USER/frontend"
+    tag: "latest"
   backendApi:
-    repository: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/backend-api
-    tag: latest
+    repository: "docker.io/REPLACE_WITH_USER/backend-api"
+    tag: "latest"
   backendData:
-    repository: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/backend-data
-    tag: latest
+    repository: "docker.io/REPLACE_WITH_USER/backend-data"
+    tag: "latest"
+
 mongodb:
-  image: mongo:6.0
+  image: "mongo:6.0"
   storage: 5Gi
-  user: comments_user
-  password: changeme
+  user: "comments_user"
+  password: "changeme"
+  database: "commentsdb"
+
 service:
   frontend:
     port: 8080
@@ -31,7 +34,9 @@ service:
     port: 5000
   backendData:
     port: 5001
+
 resources: {}
+
 hpa:
   enabled: true
   minReplicas: 1
@@ -39,10 +44,12 @@ hpa:
   targetCPUUtilizationPercentage: 50
 
 # Si usas imágenes privadas, el workflow de deploy crea un secret 'regcred'
-# y el chart por defecto usará ese nombre como imagePullSecrets.
 imagePullSecrets:
   - name: regcred
 
 route:
   enabled: true
-  host: ""
+  host: null   # o "app.example.com" si quieres un host específico
+  tls:
+    enabled: false
+    # termination: "edge"  # opcional, ignorado si enabled: false

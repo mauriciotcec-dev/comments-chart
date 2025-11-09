@@ -1,7 +1,8 @@
+{{- $fullname := include "comments-system.fullname" . }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "comments-system.fullname" . }}-deny-all
+  name: {{ $fullname }}-deny-all
   labels:
     app: comments
 spec:
@@ -13,7 +14,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "comments-system.fullname" . }}-allow-frontend-to-backendapi
+  name: {{ $fullname }}-allow-frontend-to-backendapi
   labels:
     app: comments
 spec:
@@ -31,12 +32,12 @@ spec:
               component: frontend
       ports:
         - protocol: TCP
-          port: {{ .Values.service.backendApi.port }}
+          port: {{ .Values.service.backendApi.port | default 5000 }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "comments-system.fullname" . }}-allow-backendapi-to-backenddata
+  name: {{ $fullname }}-allow-backendapi-to-backenddata
   labels:
     app: comments
 spec:
@@ -54,12 +55,12 @@ spec:
               component: backend-api
       ports:
         - protocol: TCP
-          port: {{ .Values.service.backendData.port }}
+          port: {{ .Values.service.backendData.port | default 5001 }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "comments-system.fullname" . }}-allow-backenddata-to-mongo
+  name: {{ $fullname }}-allow-backenddata-to-mongo
   labels:
     app: comments
 spec:

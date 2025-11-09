@@ -7,9 +7,9 @@ metadata:
     component: backend-api
 spec:
   ports:
-    - port: {{ .Values.service.backendApi.port }}
-      targetPort: {{ .Values.service.backendApi.port }}
+    - port: {{ .Values.service.backendApi.port | default 5000 }}
+      targetPort: {{ .Values.service.backendApi.port | default 5000 }}
   selector:
     app: comments
     component: backend-api
-  type: ClusterIP
+  type: {{ .Values.service.type | default "ClusterIP" }}

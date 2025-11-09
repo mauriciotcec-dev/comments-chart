@@ -26,6 +26,21 @@ spec:
           image: "{{ .Values.images.backendApi.repository }}:{{ .Values.images.backendApi.tag }}"
           ports:
             - containerPort: {{ .Values.service.backendApi.port | default 5000 }}
+{{- if .Values.backendApi.readinessProbe.enabled }}
+          readinessProbe:
+{{- if .Values.backendApi.readinessProbe.httpGet }}
+            httpGet:
+              path: {{ .Values.backendApi.readinessProbe.httpGet.path | quote }}
+              port: {{ .Values.backendApi.readinessProbe.httpGet.port }}
+{{- else }}
+            tcpSocket:
+              port: {{ .Values.backendApi.readinessProbe.tcpSocket.port }}
+{{- end }}
+            initialDelaySeconds: {{ .Values.backendApi.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.backendApi.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.backendApi.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.backendApi.readinessProbe.failureThreshold }}
+{{- end }}
           env:
             - name: BACKEND_DATA_URL
               value: {{ printf "http://%s-backend-data:%d" (include "comments-system.fullname" .) (int .Values.service.backendData.port) | quote }}

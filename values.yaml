@@ -74,6 +74,24 @@ route:
     enabled: false
     # termination: "edge"  # ignored when tls.enabled: false
 
+# Readiness / Liveness probe configuration per-component
+# Configure backendApi readinessProbe to ensure the Service only routes traffic when the app accepts connections.
+backendApi:
+  readinessProbe:
+    enabled: true
+    # Use httpGet OR tcpSocket. If both are present, httpGet takes precedence.
+    # Example httpGet:
+    # httpGet:
+    #   path: /health
+    #   port: 5000
+    # Example tcpSocket (default):
+    tcpSocket:
+      port: 5000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 5
+
 # Additional notes:
 # - In CI, pass image repo and tags and mongodb.password via --set, for example:
 #   --set images.frontend.repository="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/frontend" \

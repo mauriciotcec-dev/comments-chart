@@ -1,0 +1,57 @@
+name: CI - Detect large YAML docs in rendered chart
+
+on:
+  workflow_dispatch:
+
+jobs:
+  detect_rendered:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Render chart to YAML
+        run: |
+          # Ajusta la ruta del chart si no está en ./comments-chart
+          CHART_PATH="./comments-chart"
+          helm template comments-release "${CHART_PATH}" -n test \
+            --set-string mongodb.password="placeholder" \
+            --include-crds > rendered.yaml
+
+      - name: Add detect_large_docs.sh
+        run: |
+          cat > detect_large_docs.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          RENDERED_FILE="${1:-rendered.yaml}"
+          THRESHOLD="${2:-3145728}"
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          if command -v csplit >/dev/null 2>&1; then
+            csplit -z -f "$TMPDIR/xx" "$RENDERED_FILE" '/^---$/' '{*}' >/dev/null 2>&1 || true
+          else
+            awk -v outdir="$TMPDIR" 'BEGIN{doc=0; fname=sprintf("%s/xx%03d",outdir,doc); print "" > fname}
+          /^---$/ { doc++; fname=sprintf("%s/xx%03d",outdir,doc); next }
+          { print >> fname }' "$RENDERED_FILE"
+          fi
+          files=("$TMPDIR"/xx*)
+          if [ "${#files[@]}" -eq 0 ]; then
+            cp "$RENDERED_FILE" "$TMPDIR/xx000"; files=("$TMPDIR"/xx000);
+          fi
+          for f in "${files[@]}"; do printf "%12d %s\n" "$(wc -c <"$f")" "$f"; done | sort -rn | head -n 20
+          for f in "${files[@]}"; do s=$(wc -c <"$f"); if [ "$s" -ge "$THRESHOLD" ]; then echo "== LARGE: $f ($s bytes) =="; grep -m1 '^# Source:' "$f" || true; head -n 200 "$f"; fi; done
+          EOF
+          chmod +x detect_large_docs.sh
+
+      - name: Run detection
+        run: |
+          ./detect_large_docs.sh rendered.yaml 3145728 > detect_report.txt || true
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: detect-rendered-report
+          path: detect_report.txt

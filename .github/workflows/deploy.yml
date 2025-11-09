@@ -118,8 +118,5 @@ jobs:
           NAMESPACE="${{ steps.read_ns.outputs.namespace }}"
           # Removed --create-namespace to avoid Helm attempting cluster-scoped namespace creation
           helm upgrade --install comments-release ./ -n "${NAMESPACE}" \
-            --set images.frontend.tag={{ .Values.images.frontend.tag }} \
-            --set images.backendApi.tag={{ .Values.images.backendApi.tag }} \
-            --set images.backendData.tag={{ .Values.images.backendData.tag }} \
             --set-string mongodb.password="${{ secrets.MONGO_PASSWORD }}" \
             --wait --timeout 10m --atomic

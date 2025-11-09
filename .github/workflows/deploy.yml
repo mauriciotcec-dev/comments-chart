@@ -14,13 +14,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install oc (OpenShift client)
+      # Paso para pegar en tu workflow antes del paso de helm (ej. justo después del login a OpenShift)
+      - name: Install OpenShift client (oc) and kubectl safely
         run: |
-          curl -LO https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz
-          tar -xzf openshift-client-linux.tar.gz -C /tmp
-          sudo mv /tmp/oc /usr/local/bin/oc
-          sudo mv /tmp/kubectl /usr/local/bin/kubectl || true
-          oc version
+          set -euo pipefail
+          echo "Downloading OpenShift client to runner temp (not repo tree)..."
+          TARBALL_URL="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest/openshift-client-linux.tar.gz"
+          TDIR="${RUNNER_TEMP:-/tmp}"
+          mkdir -p "$TDIR"
+          curl -fsSL -o "$TDIR/openshift-client-linux.tar.gz" "$TARBALL_URL"
+          tar -xzf "$TDIR/openshift-client-linux.tar.gz" -C "$TDIR"
+          sudo mv "$TDIR/oc" /usr/local/bin/oc
+          # kubectl may or may not exist in the tar; ignore error if absent
+          sudo mv "$TDIR/kubectl" /usr/local/bin/kubectl || true
+          # cleanup tarball and extracted files in runner temp
+          rm -f "$TDIR/openshift-client-linux.tar.gz"
+          rm -f "$TDIR/oc" "$TDIR/kubectl" || true
+          echo "oc version:"
+          oc version --client
 
       - name: Login to OpenShift
         env:

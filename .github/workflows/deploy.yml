@@ -39,6 +39,69 @@ jobs:
             oc login "${OPENSHIFT_SERVER}" --token="${OPENSHIFT_TOKEN}"
           fi
 
+      - name: Render chart to YAML (real values, temporary for debug)
+        run: |
+          NAMESPACE="${{ steps.read_ns.outputs.namespace }}"
+          CHART_PATH="./"   # ajusta si tu chart está en otra ruta (ej. ./comments-chart)
+          helm template comments-release "${CHART_PATH}" -n "${NAMESPACE}" \
+            --set images.frontend.repository="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/frontend" \
+            --set images.frontend.tag="${{ github.sha }}" \
+            --set images.backendApi.repository="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/backend-api" \
+            --set images.backendApi.tag="${{ github.sha }}" \
+            --set images.backendData.repository="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/backend-data" \
+            --set images.backendData.tag="${{ github.sha }}" \
+            --set-string mongodb.password="${{ secrets.MONGO_PASSWORD }}" \
+            --include-crds > rendered.real.yaml
+
+      - name: Create identify_failing_doc.sh (temporary) and run it
+        run: |
+          cat > identify_failing_doc.sh <<'EOF'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          RENDERED="${1:-rendered.real.yaml}"
+          NAMESPACE="${2:-$NAMESPACE}"
+          CMD="${3:-oc}"
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          csplit -z -f "$TMP/xx" "$RENDERED" '/^---$/' '{*}' >/dev/null 2>&1 || true
+          files=( "$TMP"/xx* )
+          if [ "${#files[@]}" -eq 0 ]; then
+            cp "$RENDERED" "$TMP/xx000"
+            files=( "$TMP"/xx000 )
+          fi
+          i=0
+          for f in "${files[@]}"; do
+            i=$((i+1))
+            size=$(wc -c <"$f")
+            echo
+            echo "=== doc #$i - bytes: $size - file: $f ==="
+            grep -m1 -n '^# Source:' "$f" || true
+            echo "-> dry-run=server ..."
+            if ! $CMD apply -n "$NAMESPACE" -f "$f" --dry-run=server >/dev/null 2>&1; then
+              echo "DRY-RUN FAILED for doc #$i. Capturing server error..."
+              if ! $CMD apply -n "$NAMESPACE" -f "$f" 2> "$TMP/error_$i.txt"; then
+                echo "=== ERROR for doc #$i ==="
+                sed -n '1,200p' "$TMP/error_$i.txt"
+                echo "---- first 200 lines of the document ----"
+                sed -n '1,200p' "$f"
+                exit 3
+              fi
+            else
+              echo "DRY-RUN ok for doc #$i."
+            fi
+          done
+          echo "All documents dry-run ok."
+          EOF
+          chmod +x identify_failing_doc.sh
+          # Ejecutar el script (NAMESPACE ya definido arriba)
+          ./identify_failing_doc.sh rendered.real.yaml "${NAMESPACE}" oc > apply_detection.txt || true
+
+      - name: Upload apply detection report
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-apply-detection-report
+          path: apply_detection.txt
+          
       - name: Read namespace from chart values.yaml
         id: read_ns
         run: |

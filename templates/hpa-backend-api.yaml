@@ -5,17 +5,23 @@ metadata:
   labels:
     app: comments
     component: backend-api
+{{- if .Values.hpa.enabled }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: {{ include "comments-system.fullname" . }}-backend-api
-  minReplicas: {{ .Values.hpa.backendApi.minReplicas | default 1 }}
-  maxReplicas: {{ .Values.hpa.backendApi.maxReplicas | default 5 }}
+  {{- /* prioridad: .Values.hpa.backendApi.* -> .Values.hpa.* -> valor por defecto */}}
+  {{- $min := default (default 1 .Values.hpa.minReplicas) .Values.hpa.backendApi.minReplicas }}
+  {{- $max := default (default 5 .Values.hpa.maxReplicas) .Values.hpa.backendApi.maxReplicas }}
+  {{- $cpu := default (default 50 .Values.hpa.targetCPUUtilizationPercentage) .Values.hpa.backendApi.targetCPUUtilizationPercentage }}
+  minReplicas: {{ $min | int }}
+  maxReplicas: {{ $max | int }}
   metrics:
     - type: Resource
       resource:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: {{ .Values.hpa.backendApi.targetCPUUtilizationPercentage | default 50 }}
+          averageUtilization: {{ $cpu | int }}
+{{- end }}

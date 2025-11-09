@@ -1,32 +1,32 @@
-# Reemplaza los valores por defecto antes del deploy o pásalos desde CI con --set
+# Values for comments-system Helm chart
+# WARNING: do NOT put GitHub Actions expressions (${{ ... }}) or secrets here.
+# Inject sensitive values (image repo user, tags, mongodb.password) from CI using --set or a separate values file.
+
 replicaCount:
   frontend: 2
   backendApi: 1
   backendData: 1
 
-# Namespace donde se desplegarán los recursos (el workflow leerá este valor)
+# Namespace where resources will be deployed (workflow reads this)
 namespace: mauricio-tc-ec-dev
 
-# Repositorios por defecto: reemplaza REPLACE_WITH_USER o pásalo desde CI con --set.
-# NO uses expresiones de GitHub Actions (${{ secrets... }}) dentro del values.yaml.
+# Image repositories and tags — replace REPLACE_WITH_USER locally or inject via CI with --set
 images:
   frontend:
-    repository: "docker.io/REPLACE_WITH_USER/frontend"
+    repository: "docker.io/mauriciotoapanta/frontend"
     tag: "latest"
   backendApi:
-    repository: "docker.io/REPLACE_WITH_USER/backend-api"
+    repository: "docker.io/mauriciotoapanta/backend-api"
     tag: "latest"
   backendData:
-    repository: "docker.io/REPLACE_WITH_USER/backend-data"
+    repository: "docker.io/mauriciotoapanta/backend-data"
     tag: "latest"
 
-mongodb:
-  image: "mongo:6.0"
-  storage: 5Gi
-  user: "comments_user"
-  password: "changeme"
-  database: "commentsdb"
+# If using private registries, the CI creates a secret named 'regcred' by default
+imagePullSecrets:
+  - name: regcred
 
+# Service ports
 service:
   frontend:
     port: 8080
@@ -34,22 +34,48 @@ service:
     port: 5000
   backendData:
     port: 5001
+  type: ClusterIP
 
+# MongoDB configuration
+mongodb:
+  image: "mongo:6.0"
+  storage: "5Gi"
+  user: "comments_user"
+  password: "changeme"    # override from CI with --set-string mongodb.password="${{ secrets.MONGO_PASSWORD }}"
+  database: "commentsdb"
+
+# Pod resource defaults (empty map means no requests/limits)
 resources: {}
 
+# HPA configuration: global values and optional per-component overrides.
 hpa:
   enabled: true
+  # Global defaults (used if per-component keys are missing)
   minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 50
 
-# Si usas imágenes privadas, el workflow de deploy crea un secret 'regcred'
-imagePullSecrets:
-  - name: regcred
+  # Optional per-component overrides (keep or remove as needed)
+  frontend:
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 50
+  backendApi:
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 50
 
+# Route configuration for OpenShift
 route:
   enabled: true
-  host: null   # o "app.example.com" si quieres un host específico
+  # set host: "app.example.com" to pin a hostname; leave null to omit the host key (will let OpenShift assign)
+  host: null
   tls:
     enabled: false
-    # termination: "edge"  # opcional, ignorado si enabled: false
+    # termination: "edge"  # ignored when tls.enabled: false
+
+# Additional notes:
+# - In CI, pass image repo and tags and mongodb.password via --set, for example:
+#   --set images.frontend.repository="docker.io/${{ secrets.DOCKERHUB_USERNAME }}/frontend" \
+#   --set images.frontend.tag="${{ github.sha }}" \
+#   --set-string mongodb.password="${{ secrets.MONGO_PASSWORD }}"

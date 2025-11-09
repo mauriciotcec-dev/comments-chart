@@ -16,7 +16,7 @@ jobs:
       - name: Render chart to YAML
         run: |
           # Ajusta la ruta del chart si no está en ./comments-chart
-          CHART_PATH="./comments-chart"
+          CHART_PATH="./"
           helm template comments-release "${CHART_PATH}" -n test \
             --set-string mongodb.password="placeholder" \
             --include-crds > rendered.yaml
